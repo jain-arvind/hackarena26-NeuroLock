@@ -1,13 +1,23 @@
 ﻿import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../models/log_model.dart';
 import '../utils/constants.dart';
+import 'cloud_service.dart';
+import 'permissions_service.dart';
 
 class BleService extends ChangeNotifier {
+  BleService({CloudService? cloudService, PermissionsService? permissionsService})
+      : _cloudService = cloudService ?? CloudService(),
+        _permissionsService = permissionsService ?? PermissionsService();
+
+  final CloudService _cloudService;
+  final PermissionsService _permissionsService;
+
   BluetoothDevice? _device;
   BluetoothCharacteristic? _commandCharacteristic;
 
@@ -24,13 +34,32 @@ class BleService extends ChangeNotifier {
   bool get isScanning => _isScanning;
   List<LogModel> get logs => List<LogModel>.unmodifiable(_logs);
 
+  Future<void> _logToCloud(String type, String message) async {
+    try {
+      await _cloudService.logEvent(type: type, message: message);
+    } catch (_) {
+      // Skip cloud logging failures to keep BLE control responsive.
+    }
+  }
+
   void _addLog(String message) {
     _logs.insert(0, LogModel(message: message));
     notifyListeners();
+    unawaited(_logToCloud('app_log', message));
   }
 
   Future<void> scanAndConnect() async {
     if (isConnected || _isScanning) return;
+
+    if (!kIsWeb && Platform.isAndroid) {
+      final bool granted = await _permissionsService.ensureBlePermissions();
+      if (!granted) {
+        _status = 'Permissions denied';
+        _addLog('Bluetooth/Location permissions are required.');
+        notifyListeners();
+        return;
+      }
+    }
 
     _isScanning = true;
     _status = 'Scanning...';
@@ -141,6 +170,7 @@ class BleService extends ChangeNotifier {
     final List<int> payload = utf8.encode(command);
     await ch.write(payload, withoutResponse: false);
     _addLog('Sent: $command');
+    unawaited(_logToCloud('ble_command', command));
   }
 
   Future<void> disconnect() async {
