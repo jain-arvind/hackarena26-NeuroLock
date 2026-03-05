@@ -15,7 +15,7 @@
 
 **Problem: BioAccess MFA : Expand the locker detection concept into a full-room entry system that uses the ESP32 to manage multi-factor authentication (Phone + Proximity) for sensitive data rooms.** 
 
-**Solution:** 
+**Solution: ** 
 
 ---
 
