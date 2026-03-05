@@ -136,22 +136,39 @@ class BleService extends ChangeNotifier {
     final List<BluetoothService> services = await device.discoverServices();
     const String serviceUuid = BleConstants.serviceUuid;
     const String charUuid = BleConstants.commandCharacteristicUuid;
+    BluetoothCharacteristic? writableFallback;
 
     for (final BluetoothService service in services) {
+      _addLog('Service: ${service.uuid.str128}');
       if (service.uuid.str128.toLowerCase() == serviceUuid) {
         for (final BluetoothCharacteristic characteristic
             in service.characteristics) {
+          _addLog('  Char: ${characteristic.uuid.str128}');
           if (characteristic.uuid.str128.toLowerCase() == charUuid) {
             _commandCharacteristic = characteristic;
             break;
           }
         }
       }
+
+      for (final BluetoothCharacteristic characteristic in service.characteristics) {
+        final CharacteristicProperties p = characteristic.properties;
+        if (writableFallback == null && (p.write || p.writeWithoutResponse)) {
+          writableFallback = characteristic;
+        }
+      }
+    }
+
+    if (_commandCharacteristic == null && writableFallback != null) {
+      _commandCharacteristic = writableFallback;
+      _addLog(
+        'Using fallback writable characteristic: ${writableFallback.uuid.str128}',
+      );
     }
 
     if (_commandCharacteristic == null) {
       _status = 'Characteristic not found';
-      _addLog('Connected but command characteristic is missing.');
+      _addLog('Connected but no writable characteristic found.');
       notifyListeners();
       return;
     }

@@ -9,6 +9,7 @@
       "dependencies": [
         "cloud_firestore",
         "cupertino_icons",
+        "email_validator",
         "firebase_auth",
         "firebase_core",
         "flutter",
@@ -44,6 +45,11 @@
         "test_api",
         "vector_math"
       ]
+    },
+    {
+      "name": "email_validator",
+      "version": "3.0.0",
+      "dependencies": []
     },
     {
       "name": "firebase_auth",

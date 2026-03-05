@@ -1,7 +1,6 @@
 ﻿import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
-import 'services/auth_service.dart';
 import 'ui/home_screen.dart';
 
 Future<void> main() async {
@@ -9,7 +8,6 @@ Future<void> main() async {
 
   try {
     await Firebase.initializeApp();
-    await AuthService().signInAnonymously();
   } catch (_) {
     // Firebase setup is optional during local BLE-only runs.
   }
