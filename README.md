@@ -1,43 +1,40 @@
-﻿# NeuroLock - BLE Smart Door Prototype
+# VICSTA Hackathon – Grand Finale
+**VIT College, Kondhwa Campus | 5th – 6th March**
 
-This repository now contains initial scaffolding for:
+---
 
-- ESP32 firmware with BLE command server
-- Flutter app for BLE scan/connect and control actions
-- Basic protocol documentation
+## Team Details
 
-## Project Structure
+- **Team Name:NeuroLock**
+- **Members: Yashodeep Karle, Pushkar Suryavanshi, Sarvesh Katkar, Kaustav Sengupta**
+- **Domain:Productvity and Security**
 
-- `docs/ble_protocol.md`
-- `flutter_app/`
-- `esp32_firmware/`
+---
 
-## Wiring (as provided)
+## Project
 
-- Relay IN1 -> GPIO23
-- Green LED -> GPIO18 (with 220/330 ohm resistor)
-- Red LED -> GPIO19 (with 220/330 ohm resistor)
-- Buzzer + -> GPIO5, buzzer - -> GND
-- Push button -> GPIO4 and GND (INPUT_PULLUP)
-- Relay VCC -> 5V, Relay GND -> GND
+**Problem: BioAccess MFA : Expand the locker detection concept into a full-room entry system that uses the ESP32 to manage multi-factor authentication (Phone + Proximity) for sensitive data rooms.** 
 
-## ESP32 Setup
+**Solution:** 
 
-1. Install `NimBLE-Arduino` library.
-2. Open `esp32_firmware/main.ino` in Arduino IDE.
-3. Select ESP32 board and upload.
-4. Device advertises as `NeuroLock-ESP32`.
+---
 
-## Flutter Setup
+## Rules to Remember
 
-1. Create/enable Flutter platform folders if needed:
-   - from `flutter_app/`, run `flutter create .`
-2. Install dependencies:
-   - `flutter pub get`
-3. Run on Android device with Bluetooth + Location permissions enabled.
+- All development must happen **during** the hackathon only
+- Push code **regularly** — commit history is monitored
+- Use only open-source libraries with compatible licenses and **credit them**
+- Only **one submission** per team
+- All members must be present **both days**
 
-## BLE Commands
+---
 
-`UNLOCK`, `LOCK`, `ALARM_ON`, `ALARM_OFF`, `PING`
+## Attribution
 
-See `docs/ble_protocol.md` for full details.
+List any external libraries, APIs, or datasets used here.
+
+---
+
+> *"The world is not enough — but it is such a perfect place to start."* — James Bond
+>
+> All the best to every team. Build something great. 🚀
