@@ -12,7 +12,20 @@
           "package_name": "com.example.neurolock_flutter_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "415517447962-r6rbj0fsaf879qacsv0aftroqcqjn4qd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.neurolock_flutter_app",
+            "certificate_hash": "4e35c9a7c25e6a304ec5402b106c35a35b5d5e05"
+          }
+        },
+        {
+          "client_id": "415517447962-7bv2919mr20udqurm3sl41848dp1kf8c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDAdGKFNG8hcakxAxFN3Ul-2CjzPTmUpts"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "415517447962-7bv2919mr20udqurm3sl41848dp1kf8c.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

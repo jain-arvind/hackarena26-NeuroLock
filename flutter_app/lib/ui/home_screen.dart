@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../services/ble_service.dart';
+import '../services/wifi_service.dart';
 import '../utils/constants.dart';
 import 'logs_screen.dart';
+
+enum ConnectionMode { ble, wifi }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,26 +18,34 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late final BleService _bleService;
+  late final WifiService _wifiService;
   late final AuthService _authService;
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _wifiHostController = TextEditingController();
 
   String? _authError;
+  String? _actionError;
   bool _isSigningIn = false;
+  bool _isSending = false;
+  ConnectionMode _mode = ConnectionMode.ble;
 
   @override
   void initState() {
     super.initState();
     _bleService = BleService();
+    _wifiService = WifiService();
     _authService = AuthService();
   }
 
   @override
   void dispose() {
     _bleService.dispose();
+    _wifiService.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _wifiHostController.dispose();
     super.dispose();
   }
 
@@ -49,14 +60,13 @@ class _HomeScreenState extends State<HomeScreen> {
         email: _emailController.text,
         password: _passwordController.text,
       );
+      if (mounted) setState(() {});
     } on FirebaseAuthException catch (e) {
       setState(() => _authError = e.message ?? e.code);
     } catch (_) {
       setState(() => _authError = 'Sign-in failed.');
     } finally {
-      if (mounted) {
-        setState(() => _isSigningIn = false);
-      }
+      if (mounted) setState(() => _isSigningIn = false);
     }
   }
 
@@ -68,18 +78,39 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       await _authService.signInWithGoogleEdu();
-      if (mounted) {
-        setState(() {});
-      }
+      if (mounted) setState(() {});
     } on FirebaseAuthException catch (e) {
       setState(() => _authError = e.message ?? e.code);
     } catch (_) {
       setState(() => _authError = 'Google sign-in failed.');
     } finally {
-      if (mounted) {
-        setState(() => _isSigningIn = false);
-      }
+      if (mounted) setState(() => _isSigningIn = false);
     }
+  }
+
+  Future<void> _sendCommand(String command) async {
+    setState(() {
+      _isSending = true;
+      _actionError = null;
+    });
+
+    try {
+      if (_mode == ConnectionMode.ble) {
+        await _bleService.sendCommand(command);
+      } else {
+        await _wifiService.sendCommand(command);
+      }
+    } catch (e) {
+      setState(() => _actionError = '$e');
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  bool _canControl(User? user) {
+    if (user == null || _isSending) return false;
+    if (_mode == ConnectionMode.ble) return _bleService.isConnected;
+    return _wifiService.isConfigured;
   }
 
   @override
@@ -87,11 +118,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final User? user = _authService.currentUser;
 
     return AnimatedBuilder(
-      animation: _bleService,
+      animation: Listenable.merge(<Listenable>[_bleService, _wifiService]),
       builder: (BuildContext context, _) {
+        final String status = _mode == ConnectionMode.ble
+            ? _bleService.status
+            : _wifiService.status;
+
         return Scaffold(
           appBar: AppBar(
-            title: const Text('NeuroLock BLE Control'),
+            title: const Text('NeuroLock Control'),
             actions: <Widget>[
               IconButton(
                 onPressed: () {
@@ -180,60 +215,125 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text('Status: ${_bleService.status}'),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 8,
-                          children: <Widget>[
-                            ElevatedButton(
-                              onPressed: user == null || _bleService.isScanning
-                                  ? null
-                                  : _bleService.scanAndConnect,
-                              child: const Text('Scan & Connect'),
+                        const Text('Connection mode'),
+                        const SizedBox(height: 8),
+                        SegmentedButton<ConnectionMode>(
+                          segments: const <ButtonSegment<ConnectionMode>>[
+                            ButtonSegment<ConnectionMode>(
+                              value: ConnectionMode.ble,
+                              label: Text('BLE'),
+                              icon: Icon(Icons.bluetooth),
                             ),
-                            OutlinedButton(
-                              onPressed: _bleService.disconnect,
-                              child: const Text('Disconnect'),
+                            ButtonSegment<ConnectionMode>(
+                              value: ConnectionMode.wifi,
+                              label: Text('Wi-Fi'),
+                              icon: Icon(Icons.wifi),
                             ),
                           ],
+                          selected: <ConnectionMode>{_mode},
+                          onSelectionChanged: (Set<ConnectionMode> selection) {
+                            setState(() => _mode = selection.first);
+                          },
                         ),
+                        const SizedBox(height: 12),
+                        Text('Status: $status'),
+                        const SizedBox(height: 12),
+                        if (_mode == ConnectionMode.ble)
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: <Widget>[
+                              ElevatedButton(
+                                onPressed: user == null || _bleService.isScanning
+                                    ? null
+                                    : _bleService.scanAndConnect,
+                                child: const Text('Scan & Connect'),
+                              ),
+                              OutlinedButton(
+                                onPressed: _bleService.disconnect,
+                                child: const Text('Disconnect'),
+                              ),
+                            ],
+                          )
+                        else
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              TextField(
+                                controller: _wifiHostController,
+                                decoration: const InputDecoration(
+                                  labelText: 'ESP32 host/IP (e.g. 192.168.1.50:80)',
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 8,
+                                children: <Widget>[
+                                  ElevatedButton(
+                                    onPressed: user == null
+                                        ? null
+                                        : () {
+                                            _wifiService.configureBaseUrl(
+                                              _wifiHostController.text,
+                                            );
+                                          },
+                                    child: const Text('Set Host'),
+                                  ),
+                                  OutlinedButton(
+                                    onPressed: user == null
+                                        ? null
+                                        : _wifiService.testConnection,
+                                    child: const Text('Test Wi-Fi'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
-                  onPressed: user != null && _bleService.isConnected
-                      ? () => _bleService.sendCommand(BleCommands.unlock)
+                  onPressed: _canControl(user)
+                      ? () => _sendCommand(BleCommands.unlock)
                       : null,
                   icon: const Icon(Icons.lock_open),
                   label: const Text('Unlock Door'),
                 ),
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
-                  onPressed: user != null && _bleService.isConnected
-                      ? () => _bleService.sendCommand(BleCommands.lock)
+                  onPressed: _canControl(user)
+                      ? () => _sendCommand(BleCommands.lock)
                       : null,
                   icon: const Icon(Icons.lock),
                   label: const Text('Lock Door'),
                 ),
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
-                  onPressed: user != null && _bleService.isConnected
-                      ? () => _bleService.sendCommand(BleCommands.alarmOn)
+                  onPressed: _canControl(user)
+                      ? () => _sendCommand(BleCommands.alarmOn)
                       : null,
                   icon: const Icon(Icons.warning_amber),
                   label: const Text('Alarm ON'),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  onPressed: user != null && _bleService.isConnected
-                      ? () => _bleService.sendCommand(BleCommands.alarmOff)
+                  onPressed: _canControl(user)
+                      ? () => _sendCommand(BleCommands.alarmOff)
                       : null,
                   icon: const Icon(Icons.notifications_off),
                   label: const Text('Alarm OFF'),
                 ),
+                if (_actionError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _actionError!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
               ],
             ),
           ),
