@@ -16,6 +16,7 @@
         "flutter_blue_plus",
         "google_sign_in",
         "http",
+        "network_info_plus",
         "permission_handler"
       ],
       "devDependencies": [
@@ -46,6 +47,20 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "network_info_plus",
+      "version": "6.1.4",
+      "dependencies": [
+        "collection",
+        "ffi",
+        "flutter",
+        "flutter_web_plugins",
+        "meta",
+        "network_info_plus_platform_interface",
+        "nm",
+        "win32"
       ]
     },
     {
@@ -238,6 +253,41 @@
         "stream_channel",
         "string_scanner",
         "term_glyph"
+      ]
+    },
+    {
+      "name": "ffi",
+      "version": "2.2.0",
+      "dependencies": []
+    },
+    {
+      "name": "win32",
+      "version": "5.15.0",
+      "dependencies": [
+        "ffi"
+      ]
+    },
+    {
+      "name": "network_info_plus_platform_interface",
+      "version": "2.0.2",
+      "dependencies": [
+        "flutter",
+        "meta",
+        "plugin_platform_interface"
+      ]
+    },
+    {
+      "name": "flutter_web_plugins",
+      "version": "0.0.0",
+      "dependencies": [
+        "flutter"
+      ]
+    },
+    {
+      "name": "nm",
+      "version": "0.5.0",
+      "dependencies": [
+        "dbus"
       ]
     },
     {
@@ -525,6 +575,23 @@
       ]
     },
     {
+      "name": "plugin_platform_interface",
+      "version": "2.1.8",
+      "dependencies": [
+        "meta"
+      ]
+    },
+    {
+      "name": "dbus",
+      "version": "0.7.12",
+      "dependencies": [
+        "args",
+        "ffi",
+        "meta",
+        "xml"
+      ]
+    },
+    {
       "name": "typed_data",
       "version": "1.4.0",
       "dependencies": [
@@ -537,20 +604,6 @@
       "dependencies": [
         "meta",
         "web"
-      ]
-    },
-    {
-      "name": "flutter_web_plugins",
-      "version": "0.0.0",
-      "dependencies": [
-        "flutter"
-      ]
-    },
-    {
-      "name": "plugin_platform_interface",
-      "version": "2.1.8",
-      "dependencies": [
-        "meta"
       ]
     },
     {
@@ -582,16 +635,6 @@
       "dependencies": []
     },
     {
-      "name": "dbus",
-      "version": "0.7.12",
-      "dependencies": [
-        "args",
-        "ffi",
-        "meta",
-        "xml"
-      ]
-    },
-    {
       "name": "xml",
       "version": "6.6.1",
       "dependencies": [
@@ -599,11 +642,6 @@
         "meta",
         "petitparser"
       ]
-    },
-    {
-      "name": "ffi",
-      "version": "2.2.0",
-      "dependencies": []
     },
     {
       "name": "args",

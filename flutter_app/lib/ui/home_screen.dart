@@ -286,6 +286,20 @@ class _HomeScreenState extends State<HomeScreen> {
                                         : _wifiService.testConnection,
                                     child: const Text('Test Wi-Fi'),
                                   ),
+                                  OutlinedButton(
+                                    onPressed: user == null
+                                        ? null
+                                        : () async {
+                                            final String? found =
+                                                await _wifiService
+                                                    .autoDiscoverHost();
+                                            if (found != null && mounted) {
+                                              _wifiHostController.text = found
+                                                  .replaceFirst('http://', '');
+                                            }
+                                          },
+                                    child: const Text('Auto Detect'),
+                                  ),
                                 ],
                               ),
                             ],
