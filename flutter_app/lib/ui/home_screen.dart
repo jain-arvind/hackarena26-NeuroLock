@@ -60,6 +60,28 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isSigningIn = true;
+      _authError = null;
+    });
+
+    try {
+      await _authService.signInWithGoogleEdu();
+      if (mounted) {
+        setState(() {});
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() => _authError = e.message ?? e.code);
+    } catch (_) {
+      setState(() => _authError = 'Google sign-in failed.');
+    } finally {
+      if (mounted) {
+        setState(() => _isSigningIn = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final User? user = _authService.currentUser;
@@ -113,6 +135,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           ElevatedButton(
                             onPressed: _isSigningIn ? null : _signIn,
                             child: Text(_isSigningIn ? 'Signing in...' : 'Sign In'),
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: _isSigningIn ? null : _signInWithGoogle,
+                            child: const Text('Continue with Google'),
                           ),
                           if (_authError != null)
                             Padding(
