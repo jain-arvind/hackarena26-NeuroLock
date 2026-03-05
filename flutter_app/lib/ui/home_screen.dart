@@ -1,8 +1,11 @@
-﻿import 'package:firebase_auth/firebase_auth.dart';
+﻿import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../services/ble_service.dart';
+import '../services/cloud_service.dart';
 import '../services/wifi_service.dart';
 import '../utils/constants.dart';
 import 'logs_screen.dart';
@@ -20,15 +23,20 @@ class _HomeScreenState extends State<HomeScreen> {
   late final BleService _bleService;
   late final WifiService _wifiService;
   late final AuthService _authService;
+  late final CloudService _cloudService;
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _wifiHostController = TextEditingController();
 
+  StreamSubscription<bool>? _faceVerificationSub;
+
   String? _authError;
   String? _actionError;
   bool _isSigningIn = false;
   bool _isSending = false;
+  bool _isFaceVerified = false;
+  String _faceStatus = 'Pending remote verification';
   ConnectionMode _mode = ConnectionMode.ble;
 
   @override
@@ -37,16 +45,51 @@ class _HomeScreenState extends State<HomeScreen> {
     _bleService = BleService();
     _wifiService = WifiService();
     _authService = AuthService();
+    _cloudService = CloudService();
+
+    final User? user = _authService.currentUser;
+    if (user != null) {
+      _startFaceVerificationWatcher(user.uid);
+    }
   }
 
   @override
   void dispose() {
+    _faceVerificationSub?.cancel();
     _bleService.dispose();
     _wifiService.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _wifiHostController.dispose();
     super.dispose();
+  }
+
+  void _startFaceVerificationWatcher(String uid) {
+    _faceVerificationSub?.cancel();
+
+    setState(() {
+      _isFaceVerified = false;
+      _faceStatus = 'Waiting for verification on external camera device';
+    });
+
+    _faceVerificationSub = _cloudService.faceVerificationStream(uid).listen(
+      (bool verified) {
+        if (!mounted) return;
+        setState(() {
+          _isFaceVerified = verified;
+          _faceStatus = verified
+              ? 'Face verified. Door controls enabled.'
+              : 'Pending remote verification';
+        });
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          _isFaceVerified = false;
+          _faceStatus = 'Verification status unavailable';
+        });
+      },
+    );
   }
 
   Future<void> _signIn() async {
@@ -56,10 +99,15 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      await _authService.signInWithEduEmail(
+      final User? user = await _authService.signInWithEduEmail(
         email: _emailController.text,
         password: _passwordController.text,
       );
+
+      if (user != null) {
+        _startFaceVerificationWatcher(user.uid);
+      }
+
       if (mounted) setState(() {});
     } on FirebaseAuthException catch (e) {
       setState(() => _authError = e.message ?? e.code);
@@ -77,7 +125,11 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      await _authService.signInWithGoogleEdu();
+      final User? user = await _authService.signInWithGoogleEdu();
+      if (user != null) {
+        _startFaceVerificationWatcher(user.uid);
+      }
+
       if (mounted) setState(() {});
     } on FirebaseAuthException catch (e) {
       setState(() => _authError = e.message ?? e.code);
@@ -86,6 +138,25 @@ class _HomeScreenState extends State<HomeScreen> {
     } finally {
       if (mounted) setState(() => _isSigningIn = false);
     }
+  }
+
+  Future<void> _signOut() async {
+    final User? user = _authService.currentUser;
+    if (user != null) {
+      try {
+        await _cloudService.clearFaceVerification(user.uid);
+      } catch (_) {}
+    }
+
+    await _authService.signOut();
+    await _bleService.disconnect();
+
+    _faceVerificationSub?.cancel();
+    setState(() {
+      _isFaceVerified = false;
+      _faceStatus = 'Pending remote verification';
+      _actionError = null;
+    });
   }
 
   Future<void> _sendCommand(String command) async {
@@ -108,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   bool _canControl(User? user) {
-    if (user == null || _isSending) return false;
+    if (user == null || !_isFaceVerified || _isSending) return false;
     if (_mode == ConnectionMode.ble) return _bleService.isConnected;
     return _wifiService.isConfigured;
   }
@@ -197,11 +268,37 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: <Widget>[
                           Expanded(child: Text('Signed in: ${user.email ?? 'unknown'}')),
                           TextButton(
-                            onPressed: () async {
-                              await _authService.signOut();
-                              if (mounted) setState(() {});
-                            },
+                            onPressed: _signOut,
                             child: const Text('Sign out'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          const Text('Face Verification (Remote Device)'),
+                          const SizedBox(height: 8),
+                          Text(
+                            _faceStatus,
+                            style: TextStyle(
+                              color: _isFaceVerified ? Colors.green : Colors.orange,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'External device should update Firestore doc: face_verifications/${user.uid}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: () => _startFaceVerificationWatcher(user.uid),
+                            child: const Text('Refresh Verification Status'),
                           ),
                         ],
                       ),
@@ -244,7 +341,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             runSpacing: 8,
                             children: <Widget>[
                               ElevatedButton(
-                                onPressed: user == null || _bleService.isScanning
+                                onPressed: user == null ||
+                                        !_isFaceVerified ||
+                                        _bleService.isScanning
                                     ? null
                                     : _bleService.scanAndConnect,
                                 child: const Text('Scan & Connect'),
@@ -271,7 +370,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 runSpacing: 8,
                                 children: <Widget>[
                                   ElevatedButton(
-                                    onPressed: user == null
+                                    onPressed: user == null || !_isFaceVerified
                                         ? null
                                         : () {
                                             _wifiService.configureBaseUrl(
@@ -281,21 +380,20 @@ class _HomeScreenState extends State<HomeScreen> {
                                     child: const Text('Set Host'),
                                   ),
                                   OutlinedButton(
-                                    onPressed: user == null
+                                    onPressed: user == null || !_isFaceVerified
                                         ? null
                                         : _wifiService.testConnection,
                                     child: const Text('Test Wi-Fi'),
                                   ),
                                   OutlinedButton(
-                                    onPressed: user == null
+                                    onPressed: user == null || !_isFaceVerified
                                         ? null
                                         : () async {
                                             final String? found =
-                                                await _wifiService
-                                                    .autoDiscoverHost();
+                                                await _wifiService.autoDiscoverHost();
                                             if (found != null && mounted) {
-                                              _wifiHostController.text = found
-                                                  .replaceFirst('http://', '');
+                                              _wifiHostController.text =
+                                                  found.replaceFirst('http://', '');
                                             }
                                           },
                                     child: const Text('Auto Detect'),

@@ -1,10 +1,18 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /ble_logs/{logId} {
-      allow read, write: if request.auth != null
+    function isEdu() {
+      return request.auth != null
         && request.auth.token.email is string
         && request.auth.token.email.matches('(?i).*\\.edu$');
+    }
+
+    match /ble_logs/{logId} {
+      allow read, write: if isEdu();
+    }
+
+    match /face_verifications/{uid} {
+      allow read, write: if isEdu() && request.auth.uid == uid;
     }
 
     match /{document=**} {
