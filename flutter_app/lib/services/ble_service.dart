@@ -65,7 +65,6 @@ class BleService extends ChangeNotifier {
     _status = 'Scanning...';
     notifyListeners();
 
-    final Guid serviceGuid = Guid(BleConstants.serviceUuid);
     final Completer<BluetoothDevice?> found = Completer<BluetoothDevice?>();
 
     _scanSub?.cancel();
@@ -73,8 +72,11 @@ class BleService extends ChangeNotifier {
       for (final ScanResult result in results) {
         final String advName = result.advertisementData.advName;
         final String platformName = result.device.platformName;
-        final bool nameMatch = advName == BleConstants.deviceName ||
-            platformName == BleConstants.deviceName;
+        final String expected = BleConstants.deviceName.toLowerCase();
+        final bool nameMatch = advName.toLowerCase() == expected ||
+            platformName.toLowerCase() == expected ||
+            advName.toLowerCase() == expected.replaceAll('_', '-') ||
+            platformName.toLowerCase() == expected.replaceAll('_', '-');
 
         if (nameMatch && !found.isCompleted) {
           found.complete(result.device);
@@ -86,7 +88,6 @@ class BleService extends ChangeNotifier {
     try {
       await FlutterBluePlus.startScan(
         timeout: const Duration(seconds: 8),
-        withServices: <Guid>[serviceGuid],
       );
 
       final BluetoothDevice? device = await found.future.timeout(
