@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "415517447962",
+    "project_id": "neurolock-e573a",
+    "storage_bucket": "neurolock-e573a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:415517447962:android:46def96917424f7156bea3",
+        "android_client_info": {
+          "package_name": "com.example.neurolock_flutter_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDAdGKFNG8hcakxAxFN3Ul-2CjzPTmUpts"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
