@@ -1,7 +1,7 @@
+﻿#include <BLE2902.h>
 #include <BLEDevice.h>
+#include <BLEServer.h>
 #include <BLEUtils.h>
-#include <BLEScan.h>
-#include <BLEAdvertising.h>
 
 #define RELAY_PIN 23
 #define GREEN_LED 18
@@ -9,45 +9,122 @@
 #define BUZZER 5
 #define BUTTON_PIN 4
 
-#define SCAN_TIME 1
+static const char* DEVICE_NAME = "NeuroLock_ESP32";
+static const char* SERVICE_UUID = "19B10010-E8F2-537E-4F6C-D104768A1214";
+static const char* CHARACTERISTIC_UUID = "19B10011-E8F2-537E-4F6C-D104768A1214";
 
-// -------- DEVICE DATABASE --------
-struct User {
-  int userID;
-  String phoneName;
+// Most 1-channel relay modules used with ESP32 are active LOW.
+static const int RELAY_ACTIVE_LEVEL = LOW;
+static const int RELAY_IDLE_LEVEL = HIGH;
+
+static const uint32_t UNLOCK_DURATION_MS = 5000;
+static const uint32_t BUTTON_DEBOUNCE_MS = 250;
+
+BLEServer* g_server = nullptr;
+BLECharacteristic* g_commandCharacteristic = nullptr;
+bool g_deviceConnected = false;
+bool g_prevDeviceConnected = false;
+
+bool g_alarmEnabled = false;
+bool g_doorUnlocked = false;
+uint32_t g_unlockUntil = 0;
+uint32_t g_lastButtonMs = 0;
+
+void setLockedState() {
+  digitalWrite(RELAY_PIN, RELAY_IDLE_LEVEL);
+  digitalWrite(GREEN_LED, LOW);
+  digitalWrite(RED_LED, HIGH);
+  g_doorUnlocked = false;
+  g_unlockUntil = 0;
+}
+
+void setUnlockedState(uint32_t durationMs) {
+  digitalWrite(RELAY_PIN, RELAY_ACTIVE_LEVEL);
+  digitalWrite(GREEN_LED, HIGH);
+  digitalWrite(RED_LED, LOW);
+  g_doorUnlocked = true;
+  g_unlockUntil = millis() + durationMs;
+}
+
+void setAlarm(bool enabled) {
+  g_alarmEnabled = enabled;
+  digitalWrite(BUZZER, enabled ? HIGH : LOW);
+}
+
+void notifyStatus(const char* status) {
+  if (g_commandCharacteristic == nullptr || !g_deviceConnected) {
+    return;
+  }
+  g_commandCharacteristic->setValue(status);
+  g_commandCharacteristic->notify();
+}
+
+String normalizedCommand(std::string raw) {
+  String cmd = String(raw.c_str());
+  cmd.trim();
+  cmd.toUpperCase();
+  return cmd;
+}
+
+class ServerCallbacks : public BLEServerCallbacks {
+  void onConnect(BLEServer* pServer) override {
+    (void)pServer;
+    g_deviceConnected = true;
+    Serial.println("BLE client connected");
+  }
+
+  void onDisconnect(BLEServer* pServer) override {
+    (void)pServer;
+    g_deviceConnected = false;
+    Serial.println("BLE client disconnected");
+  }
 };
 
-User users[] = {
-  {1, "OPPO Reno7 Pro 5G"},
-  {2, "iQOO Z3 5G"}
-};
-
-const int USER_COUNT = 2;
-
-BLEScan* pBLEScan;
-
-int detectedUser = 0;
-String detectedPhone = "";
-
-bool doorOpen = false;
-unsigned long doorOpenTime = 0;
-unsigned long lastScan = 0;
-unsigned long doorTimeout = 8000;
-
-class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
-  void onResult(BLEAdvertisedDevice advertisedDevice) {
-
-    String name = advertisedDevice.getName().c_str();
-    int rssi = advertisedDevice.getRSSI();
-
-    if (rssi > -75 && name.length() > 0) {
-      detectedPhone = name;
+class CommandCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic* pCharacteristic) override {
+    std::string raw = pCharacteristic->getValue();
+    if (raw.empty()) {
+      return;
     }
+
+    String cmd = normalizedCommand(raw);
+    Serial.print("CMD: ");
+    Serial.println(cmd);
+
+    if (cmd == "UNLOCK") {
+      setUnlockedState(UNLOCK_DURATION_MS);
+      notifyStatus("UNLOCKED");
+      return;
+    }
+
+    if (cmd == "LOCK") {
+      setLockedState();
+      notifyStatus("LOCKED");
+      return;
+    }
+
+    if (cmd == "ALARM_ON") {
+      setAlarm(true);
+      notifyStatus("ALARM_ON");
+      return;
+    }
+
+    if (cmd == "ALARM_OFF") {
+      setAlarm(false);
+      notifyStatus("ALARM_OFF");
+      return;
+    }
+
+    if (cmd == "PING") {
+      notifyStatus("PONG");
+      return;
+    }
+
+    notifyStatus("DENIED");
   }
 };
 
 void setup() {
-
   Serial.begin(115200);
 
   pinMode(RELAY_PIN, OUTPUT);
@@ -56,112 +133,58 @@ void setup() {
   pinMode(BUZZER, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-  digitalWrite(RELAY_PIN, HIGH);
-  digitalWrite(GREEN_LED, LOW);
-  digitalWrite(RED_LED, HIGH);
+  setAlarm(false);
+  setLockedState();
 
-  // -------- TURN ON BLUETOOTH --------
-  BLEDevice::init("NeuroLock_ESP32");
+  BLEDevice::init(DEVICE_NAME);
+  g_server = BLEDevice::createServer();
+  g_server->setCallbacks(new ServerCallbacks());
 
-  // -------- MAKE ESP32 VISIBLE --------
-  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  pAdvertising->start();
+  BLEService* service = g_server->createService(SERVICE_UUID);
+  g_commandCharacteristic = service->createCharacteristic(
+      CHARACTERISTIC_UUID,
+      BLECharacteristic::PROPERTY_READ |
+          BLECharacteristic::PROPERTY_WRITE |
+          BLECharacteristic::PROPERTY_NOTIFY);
+  g_commandCharacteristic->addDescriptor(new BLE2902());
+  g_commandCharacteristic->setCallbacks(new CommandCallbacks());
+  g_commandCharacteristic->setValue("READY");
 
-  // -------- START BLE SCANNING --------
-  pBLEScan = BLEDevice::getScan();
-  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
-  pBLEScan->setActiveScan(true);
+  service->start();
 
-  Serial.println("ESP32 Bluetooth Ready");
+  BLEAdvertising* advertising = BLEDevice::getAdvertising();
+  advertising->addServiceUUID(SERVICE_UUID);
+  advertising->setScanResponse(true);
+  advertising->setMinPreferred(0x06);
+  advertising->setMinPreferred(0x12);
+  BLEDevice::startAdvertising();
+
+  Serial.println("NeuroLock BLE server ready");
 }
 
 void loop() {
+  const uint32_t now = millis();
 
-  if (millis() - lastScan > 3000) {
-
-    detectedPhone = "";
-
-    BLEScanResults* foundDevices = pBLEScan->start(SCAN_TIME, false);
-
-    pBLEScan->clearResults();
-
-    lastScan = millis();
+  if (g_doorUnlocked && g_unlockUntil != 0 && (int32_t)(now - g_unlockUntil) >= 0) {
+    setLockedState();
+    notifyStatus("LOCKED");
   }
 
-  // ---- Receive user ID from Python ----
-  if (Serial.available()) {
-
-    String msg = Serial.readStringUntil('\n');
-    msg.trim();
-
-    if (msg == "USER1") detectedUser = 1;
-    else if (msg == "USER2") detectedUser = 2;
-    else detectedUser = 0;
+  if (digitalRead(BUTTON_PIN) == LOW && (now - g_lastButtonMs) > BUTTON_DEBOUNCE_MS) {
+    g_lastButtonMs = now;
+    setUnlockedState(UNLOCK_DURATION_MS);
+    notifyStatus("BUTTON_UNLOCK");
   }
 
-  bool accessGranted = false;
-
-  for (int i = 0; i < USER_COUNT; i++) {
-
-    if (users[i].userID == detectedUser &&
-        users[i].phoneName == detectedPhone) {
-
-      accessGranted = true;
-      break;
-    }
+  if (g_deviceConnected && !g_prevDeviceConnected) {
+    g_prevDeviceConnected = true;
   }
 
-  // -------- LED STATUS --------
-  if (doorOpen || accessGranted) {
-
-    digitalWrite(GREEN_LED, HIGH);
-    digitalWrite(RED_LED, LOW);
-
-  } else {
-
-    digitalWrite(GREEN_LED, LOW);
-    digitalWrite(RED_LED, HIGH);
+  if (!g_deviceConnected && g_prevDeviceConnected) {
+    delay(100);
+    g_server->startAdvertising();
+    g_prevDeviceConnected = false;
   }
 
-  // -------- BUTTON CONTROL --------
-  if (digitalRead(BUTTON_PIN) == LOW) {
-
-    delay(50);
-
-    if (doorOpen) closeDoor();
-    else if (accessGranted) openDoor();
-    else alarm();
-
-    while (digitalRead(BUTTON_PIN) == LOW);
-  }
-
-  // -------- DOOR OPEN WARNING --------
-  if (doorOpen && millis() - doorOpenTime > doorTimeout)
-    digitalWrite(BUZZER, HIGH);
-}
-
-void openDoor() {
-
-  digitalWrite(RELAY_PIN, LOW);
-  doorOpen = true;
-  doorOpenTime = millis();
-}
-
-void closeDoor() {
-
-  digitalWrite(RELAY_PIN, HIGH);
-  doorOpen = false;
-  digitalWrite(BUZZER, LOW);
-}
-
-void alarm() {
-
-  for (int i = 0; i < 3; i++) {
-
-    digitalWrite(BUZZER, HIGH);
-    delay(200);
-
-    digitalWrite(BUZZER, LOW);
-    delay(200);
-  }
+  delay(10);
 }
