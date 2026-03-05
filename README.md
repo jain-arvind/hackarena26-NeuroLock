@@ -1,40 +1,43 @@
-# VICSTA Hackathon – Grand Finale
-**VIT College, Kondhwa Campus | 5th – 6th March**
+﻿# NeuroLock - BLE Smart Door Prototype
 
----
+This repository now contains initial scaffolding for:
 
-## Team Details
+- ESP32 firmware with BLE command server
+- Flutter app for BLE scan/connect and control actions
+- Basic protocol documentation
 
-- **Team Name:NeuroLock**
-- **Members:**
-- **Domain:**
+## Project Structure
 
----
+- `docs/ble_protocol.md`
+- `flutter_app/`
+- `esp32_firmware/`
 
-## Project
+## Wiring (as provided)
 
-**Problem:** 
+- Relay IN1 -> GPIO23
+- Green LED -> GPIO18 (with 220/330 ohm resistor)
+- Red LED -> GPIO19 (with 220/330 ohm resistor)
+- Buzzer + -> GPIO5, buzzer - -> GND
+- Push button -> GPIO4 and GND (INPUT_PULLUP)
+- Relay VCC -> 5V, Relay GND -> GND
 
-**Solution:** 
+## ESP32 Setup
 
----
+1. Install `NimBLE-Arduino` library.
+2. Open `esp32_firmware/main.ino` in Arduino IDE.
+3. Select ESP32 board and upload.
+4. Device advertises as `NeuroLock-ESP32`.
 
-## Rules to Remember
+## Flutter Setup
 
-- All development must happen **during** the hackathon only
-- Push code **regularly** — commit history is monitored
-- Use only open-source libraries with compatible licenses and **credit them**
-- Only **one submission** per team
-- All members must be present **both days**
+1. Create/enable Flutter platform folders if needed:
+   - from `flutter_app/`, run `flutter create .`
+2. Install dependencies:
+   - `flutter pub get`
+3. Run on Android device with Bluetooth + Location permissions enabled.
 
----
+## BLE Commands
 
-## Attribution
+`UNLOCK`, `LOCK`, `ALARM_ON`, `ALARM_OFF`, `PING`
 
-List any external libraries, APIs, or datasets used here.
-
----
-
-> *"The world is not enough — but it is such a perfect place to start."* — James Bond
->
-> All the best to every team. Build something great. 🚀
+See `docs/ble_protocol.md` for full details.
