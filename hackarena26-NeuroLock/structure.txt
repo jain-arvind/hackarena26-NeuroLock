@@ -1,0 +1,30 @@
+bioaccess-smart-door/
+│
+├── README.md
+├── docs/
+│
+├── flutter_app/
+│   ├── lib/
+│   │   ├── main.dart
+│   │   ├── ui/
+│   │   │   ├── home_screen.dart
+│   │   │   └── logs_screen.dart
+│   │   ├── services/
+│   │   │   ├── ble_service.dart
+│   │   │   ├── auth_service.dart
+│   │   │   └── cloud_service.dart
+│   │   ├── models/
+│   │   │   └── log_model.dart
+│   │   └── utils/
+│   │       └── constants.dart
+│   │
+│   └── pubspec.yaml
+│
+├── esp32_firmware/
+│   ├── main.ino
+│   ├── ble_server.cpp
+│   ├── auth_engine.cpp
+│   └── hardware_control.cpp
+│
+└── hardware/
+    └── wiring_diagram.png
