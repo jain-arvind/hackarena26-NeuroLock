@@ -5,7 +5,7 @@
 
 ## Team Details
 
-- **Team Name:**
+- **Team Name:NeuroLock**
 - **Members:**
 - **Domain:**
 

@@ -2,8 +2,6 @@ bioaccess-smart-door/
 │
 ├── README.md
 ├── docs/
-│   ├── architecture.png
-│   └── workflow.png
 │
 ├── flutter_app/
 │   ├── lib/
