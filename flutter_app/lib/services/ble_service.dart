@@ -133,8 +133,8 @@ class BleService extends ChangeNotifier {
     });
 
     final List<BluetoothService> services = await device.discoverServices();
-    final String serviceUuid = BleConstants.serviceUuid;
-    final String charUuid = BleConstants.commandCharacteristicUuid;
+    const String serviceUuid = BleConstants.serviceUuid;
+    const String charUuid = BleConstants.commandCharacteristicUuid;
 
     for (final BluetoothService service in services) {
       if (service.uuid.str128.toLowerCase() == serviceUuid) {

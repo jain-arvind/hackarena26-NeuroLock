@@ -1,9 +1,11 @@
-﻿import 'package:flutter/foundation.dart';
+﻿import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class PermissionsService {
   Future<bool> ensureBlePermissions() async {
-    if (!defaultTargetPlatform.name.toLowerCase().contains('android')) {
+    if (kIsWeb || !Platform.isAndroid) {
       return true;
     }
 
